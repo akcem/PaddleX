@@ -21,6 +21,7 @@ if is_dep_available("opencv-contrib-python"):
 
 
 @function_requires_deps("opencv-contrib-python")
+# 统一逆时针旋转
 def rotate_image(image, angle):
     if angle < 0 or angle >= 360:
         raise ValueError("`angle` should be in range [0, 360)")

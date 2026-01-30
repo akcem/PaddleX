@@ -1,9 +1,9 @@
 Global:
   model: PP-LCNet_x2_5
   mode: check_dataset # check_dataset/train/evaluate/predict
-  dataset_dir: "/paddle/dataset/paddlex/cls/cls_flowers_examples"
-  device: gpu:0,1,2,3
-  output: "output"
+  dataset_dir: "D:/dl/datasets/zhusu/dataset_classification"
+  device: gpu:0
+  output: "output/zhusu/text_line_ori_0119_1"
 
 CheckDataset:
   convert: 
@@ -15,19 +15,19 @@ CheckDataset:
     val_percent: null
 
 Train:
-  num_classes: 102
-  epochs_iters: 20
-  batch_size: 128
-  learning_rate: 0.1
+  num_classes: 4
+  epochs_iters: 75
+  batch_size: 64
+  learning_rate: 0.0025
   pretrain_weight_path: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_pretrained_model/PP-LCNet_x2_5_pretrained.pdparams
   warmup_steps: 5
   resume_path: null
-  log_interval: 1
-  eval_interval: 1
-  save_interval: 1
+  log_interval: 10
+  eval_interval: 10
+  save_interval: 10
 
 Evaluate:
-  weight_path: "output/best_model/best_model.pdparams"
+  weight_path: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_pretrained_model/PP-LCNet_x2_5_pretrained.pdparams
   log_interval: 1
 
 Export:

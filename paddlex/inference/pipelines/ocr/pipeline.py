@@ -146,42 +146,52 @@ class _OCRPipeline(BasePipeline):
         )
         self.batch_sampler = ImageBatchSampler(batch_size=config.get("batch_size", 1))
         self.img_reader = ReadImage(format="BGR")
-
+    # 添加多旋转的支持
     def rotate_image(
-        self, image_array_list: List[np.ndarray], rotate_angle_list: List[int]
-    ) -> List[np.ndarray]:
-        """
-        Rotate the given image arrays by their corresponding angles.
-        0 corresponds to 0 degrees, 1 corresponds to 180 degrees.
+            self, image_array_list: List[np.ndarray], rotate_angle_list: List[int]
+        ) -> List[np.ndarray]:
+            """
+            根据多分类模型的输出 ID，将图像旋转回水平方向。
+            
+            映射关系（需与训练集 label.txt 中的定义一致）：
+            0: 0°    -> 旋转 0°
+            1: 45°   -> 旋转 -45° (或 315°)
+            2: 90°   -> 旋转 -90° (或 270°)
+            3: 180°  -> 旋转 -180°
+            4: 270°  -> 旋转 -270° (或 90°)
+            5: 315°  -> 旋转 -315° (或 45°)
+            """
+            
+            # 1. 定义 ID 到 实际旋转角度 的映射表
+            # 注意：这里的角度是“纠正角度”。
+            # 如果模型预测图片是 90度，我们需要旋转 -90度 把它变回 0度。
+            angle_map = {
+            0: 0,      # 预测 0°   -> 不旋转
+            1: 315,    # 预测 45°  -> 逆时针转 315° (等同于顺时针 45°)
+            2: 270,    # 预测 90°  -> 逆时针转 270° (等同于顺时针 90°)
+            3: 180,    # 预测 180° -> 旋转 180°
+            4: 90,     # 预测 270° -> 逆时针转 270° (等同于顺时针 90°)
+            5: 45,    # 预测 315° -> 逆时针转 315° (等同于顺时针 45°)
+        }
+            assert len(image_array_list) == len(
+                rotate_angle_list
+            ), f"Length mismatch: {len(image_array_list)} vs {len(rotate_angle_list)}"
 
-        Args:
-            image_array_list (List[np.ndarray]): A list of input image arrays to be rotated.
-            rotate_angle_list (List[int]): A list of rotation indicators (0 or 1).
-                                        0 means rotate by 0 degrees
-                                        1 means rotate by 180 degrees
+            # 2. 修改校验逻辑，允许 0-5
+            for angle_id in rotate_angle_list:
+                assert angle_id in angle_map, f"Unexpected class_id: {angle_id}. Expected {list(angle_map.keys())}"
 
-        Returns:
-            List[np.ndarray]: A list of rotated image arrays.
+            rotated_images = []
+            for image_array, rotate_indicator in zip(image_array_list, rotate_angle_list):
+                # 3. 通过映射表获取真实的纠正角度
+                actual_rotate_angle = angle_map[rotate_indicator]
+                
+                # 调用底层组件执行物理旋转
+                # 底层 rotate_image 函数支持 0-360 任意角度
+                rotated_image = rotate_image(image_array, actual_rotate_angle)
+                rotated_images.append(rotated_image)
 
-        Raises:
-            AssertionError: If any rotate_angle is not 0 or 1.
-            AssertionError: If the lengths of input lists don't match.
-        """
-        assert len(image_array_list) == len(
-            rotate_angle_list
-        ), f"Length of image_array_list ({len(image_array_list)}) must match length of rotate_angle_list ({len(rotate_angle_list)})"
-
-        for angle in rotate_angle_list:
-            assert angle in [0, 1], f"rotate_angle must be 0 or 1, now it's {angle}"
-
-        rotated_images = []
-        for image_array, rotate_indicator in zip(image_array_list, rotate_angle_list):
-            # Convert 0/1 indicator to actual rotation angle
-            rotate_angle = rotate_indicator * 180
-            rotated_image = rotate_image(image_array, rotate_angle)
-            rotated_images.append(rotated_image)
-
-        return rotated_images
+            return rotated_images
 
     def check_model_settings_valid(self, model_settings: Dict) -> bool:
         """
