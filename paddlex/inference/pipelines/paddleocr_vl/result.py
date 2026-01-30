@@ -19,6 +19,7 @@ from functools import partial
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+from ....utils import logging
 from ....utils.fonts import PINGFANG_FONT
 from ...common.result import (
     BaseCVResult,
@@ -32,12 +33,13 @@ from ..layout_parsing.result_v2 import (
     format_first_line_func,
     format_image_plain_func,
     format_image_scaled_by_html_func,
+    format_para_title_func,
     format_text_plain_func,
     format_title_func,
     simplify_table_func,
 )
 
-VISUALIZE_INDEX_LABELS = [
+VISUALIZE_ORDE_LABELS = [
     "text",
     "formula",
     "inline_formula",
@@ -51,13 +53,20 @@ VISUALIZE_INDEX_LABELS = [
     "doc_title",
     "vertical_text",
     "ocr",
+    "number",
+    "footnote",
+    "header",
+    "header_image",
+    "footer",
+    "footer_image",
+    "aside_text",
 ]
 
 
 class PaddleOCRVLBlock(object):
     """PaddleOCRVL Block Class"""
 
-    def __init__(self, label, bbox, content="") -> None:
+    def __init__(self, label, bbox, content="", group_id=None) -> None:
         """
         Initialize a PaddleOCRVLBlock object.
 
@@ -70,6 +79,7 @@ class PaddleOCRVLBlock(object):
         self.bbox = list(map(int, bbox))
         self.content = content
         self.image = None
+        self.group_id = group_id
 
     def __str__(self) -> str:
         """
@@ -164,7 +174,7 @@ def build_handle_funcs_dict(
         dict: A mapping from block label to handler function.
     """
     return {
-        "paragraph_title": format_title_func,
+        "paragraph_title": format_para_title_func,
         "abstract_title": format_title_func,
         "reference_title": format_title_func,
         "content_title": format_title_func,
@@ -208,6 +218,13 @@ def build_handle_funcs_dict(
         ),
         "algorithm": lambda block: block.content.strip("\n"),
         "seal": seal_func,
+        "number": format_text_plain_func,
+        "footnote": format_text_plain_func,
+        "header": format_text_plain_func,
+        "header_image": image_func,
+        "footer": format_text_plain_func,
+        "footer_image": image_func,
+        "aside_text": format_text_plain_func,
     }
 
 
@@ -228,6 +245,14 @@ class PaddleOCRVLResult(BaseCVResult, HtmlMixin, XlsxMixin, MarkdownMixin):
         XlsxMixin.__init__(self)
         MarkdownMixin.__init__(self)
         JsonMixin.__init__(self)
+        markdown_ignore_labels = self["model_settings"].get(
+            "markdown_ignore_labels", []
+        )
+        self.visualize_order_labels = [
+            label
+            for label in VISUALIZE_ORDE_LABELS
+            if label not in markdown_ignore_labels
+        ]
 
     def _to_img(self) -> dict[str, np.ndarray]:
         """
@@ -252,13 +277,14 @@ class PaddleOCRVLResult(BaseCVResult, HtmlMixin, XlsxMixin, MarkdownMixin):
         font_size = int(0.018 * int(image.width)) + 2
         font = ImageFont.truetype(PINGFANG_FONT.path, font_size, encoding="utf-8")
         parsing_result = self["parsing_res_list"]
+
         order_index = 0
         for block in parsing_result:
             bbox = block.bbox
             label = block.label
             fill_color = get_show_color(label, False)
             draw.rectangle(bbox, fill=fill_color)
-            if label in VISUALIZE_INDEX_LABELS:
+            if label in self.visualize_order_labels:
                 text_position = (bbox[2] + 2, bbox[1] - font_size // 2)
                 if int(image.width) - bbox[2] < font_size:
                     text_position = (
@@ -318,6 +344,9 @@ class PaddleOCRVLResult(BaseCVResult, HtmlMixin, XlsxMixin, MarkdownMixin):
         data = {}
         data["input_path"] = self["input_path"]
         data["page_index"] = self["page_index"]
+        data["page_count"] = self["page_count"]
+        data["width"] = self["width"]
+        data["height"] = self["height"]
         model_settings = self["model_settings"]
         data["model_settings"] = model_settings
         if self["model_settings"]["use_doc_preprocessor"]:
@@ -350,6 +379,9 @@ class PaddleOCRVLResult(BaseCVResult, HtmlMixin, XlsxMixin, MarkdownMixin):
         data = {}
         data["input_path"] = self["input_path"]
         data["page_index"] = self["page_index"]
+        data["page_count"] = self["page_count"]
+        data["width"] = self["width"]
+        data["height"] = self["height"]
         model_settings = self["model_settings"]
         data["model_settings"] = model_settings
         if self["model_settings"].get("format_block_content", False):
@@ -388,7 +420,7 @@ class PaddleOCRVLResult(BaseCVResult, HtmlMixin, XlsxMixin, MarkdownMixin):
         order_index = 1
         for idx, parsing_res in enumerate(parsing_res_list):
             label = parsing_res.label
-            if label in VISUALIZE_INDEX_LABELS:
+            if label in self.visualize_order_labels:
                 order = order_index
                 order_index += 1
             else:
@@ -399,6 +431,9 @@ class PaddleOCRVLResult(BaseCVResult, HtmlMixin, XlsxMixin, MarkdownMixin):
                 "block_bbox": parsing_res.bbox,
                 "block_id": idx,
                 "block_order": order,
+                "group_id": (
+                    parsing_res.group_id if parsing_res.group_id is not None else idx
+                ),
             }
             if self["model_settings"].get("format_block_content", False):
                 if handle_funcs_dict.get(parsing_res.label):
@@ -411,9 +446,19 @@ class PaddleOCRVLResult(BaseCVResult, HtmlMixin, XlsxMixin, MarkdownMixin):
             parsing_res_list_json.append(res_dict)
         data["parsing_res_list"] = parsing_res_list_json
         if self["model_settings"]["use_doc_preprocessor"]:
-            data["doc_preprocessor_res"] = self["doc_preprocessor_res"].json["res"]
+            if isinstance(self["doc_preprocessor_res"], list):
+                data["doc_preprocessor_res"] = [
+                    res.json["res"] for res in self["doc_preprocessor_res"]
+                ]
+            else:
+                data["doc_preprocessor_res"] = self["doc_preprocessor_res"].json["res"]
         if self["model_settings"]["use_layout_detection"]:
-            data["layout_det_res"] = self["layout_det_res"].json["res"]
+            if isinstance(self["layout_det_res"], list):
+                data["layout_det_res"] = [
+                    res.json["res"] for res in self["layout_det_res"]
+                ]
+            else:
+                data["layout_det_res"] = self["layout_det_res"].json["res"]
         return JsonMixin._to_json(data, *args, **kwargs)
 
     def _to_markdown(self, pretty=True, show_formula_number=False) -> dict:
@@ -427,7 +472,13 @@ class PaddleOCRVLResult(BaseCVResult, HtmlMixin, XlsxMixin, MarkdownMixin):
         Returns:
             dict: Markdown information with text and images.
         """
-        original_image_width = self["doc_preprocessor_res"]["output_img"].shape[1]
+
+        if isinstance(self["doc_preprocessor_res"], list):
+            original_image_width = self["doc_preprocessor_res"][0]["output_img"].shape[
+                1
+            ]
+        else:
+            original_image_width = self["doc_preprocessor_res"]["output_img"].shape[1]
 
         if pretty:
             format_text_func = lambda block: format_centered_by_html(
@@ -465,6 +516,8 @@ class PaddleOCRVLResult(BaseCVResult, HtmlMixin, XlsxMixin, MarkdownMixin):
             formula_func=format_formula_func,
             seal_func=format_seal_func,
         )
+        for label in self["model_settings"].get("markdown_ignore_labels", []):
+            handle_funcs_dict.pop(label, None)
 
         markdown_content = ""
         markdown_info = {}
@@ -501,3 +554,23 @@ class PaddleOCRVLResult(BaseCVResult, HtmlMixin, XlsxMixin, MarkdownMixin):
             markdown_info["markdown_images"][img["path"]] = img["img"]
 
         return markdown_info
+
+
+class PaddleOCRVLPagesResult(PaddleOCRVLResult):
+    def save_to_img(self, *args, **kwargs):
+        logging.warning(
+            f"The result of multi-pages don't support to save as image format!"
+        )
+        return None
+
+    def save_to_html(self, *args, **kwargs):
+        logging.warning(
+            f"The result of multi-pages don't support to save as html format!"
+        )
+        return None
+
+    def save_to_xlsx(self, *args, **kwargs):
+        logging.warning(
+            f"The result of multi-pages don't support to save as xlsx format!"
+        )
+        return None
