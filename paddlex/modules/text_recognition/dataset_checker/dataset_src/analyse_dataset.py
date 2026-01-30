@@ -153,9 +153,10 @@ def deep_analyse(dataset_path, output, datatype="MSTextRecDataset"):
     canvas = FigureCanvasAgg(fig)
     canvas.draw()
     width, height = fig.get_size_inches() * fig.get_dpi()
-    pie_array = np.frombuffer(canvas.tostring_rgb(), dtype="uint8").reshape(
-        int(height), int(width), 3
-    )
+    # 稳妥的写法
+    rgba_data = np.frombuffer(canvas.buffer_rgba(), dtype="uint8")
+    w, h = canvas.get_width_height()
+    pie_array = rgba_data.reshape(h, w, 4)[:, :, :3]
     fig1_path = os.path.join(output, "histogram.png")
     cv2.imwrite(fig1_path, pie_array)
 

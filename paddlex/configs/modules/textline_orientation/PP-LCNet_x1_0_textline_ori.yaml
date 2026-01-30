@@ -1,9 +1,9 @@
 Global:
   model: PP-LCNet_x1_0_textline_ori
   mode: check_dataset # check_dataset/train/evaluate/predict
-  dataset_dir: "/paddle/dataset/paddlex/cls/textline_orientation_example_data"
-  device: gpu:0,1,2,3
-  output: "output"
+  dataset_dir: "D:/dl/projects/python/text_renderer/rotated_ocr_cls_dataset/0130"
+  device: gpu:0
+  output: "output/0130/text_line_ori_1"
 
 CheckDataset:
   convert:
@@ -15,16 +15,16 @@ CheckDataset:
     val_percent: null
 
 Train:
-  num_classes: 2
-  epochs_iters: 20
+  num_classes: 6
+  epochs_iters: 25
   batch_size: 32
-  learning_rate: 0.8
+  learning_rate: 0.0001
   pretrain_weight_path: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_pretrained_model/PP-LCNet_x1_0_textline_ori_pretrained.pdparams
   warmup_steps: 100
   resume_path: null
   log_interval: 10
-  eval_interval: 1
-  save_interval: 1
+  eval_interval: 5
+  save_interval: 5
 
 Evaluate:
   weight_path: "output/best_model/best_model.pdparams"
