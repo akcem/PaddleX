@@ -164,15 +164,16 @@ class CropByPolys(BaseOperator):
 
     def get_rotate_crop_image(self, img: np.ndarray, points: list) -> np.ndarray:
         """
-        Crop and rotate the input image based on the given four points to form a perspective-transformed image.
+                根据给定的四个点，对输入图像进行裁切和旋转，
+                通过透视变换得到校正后的图像。
 
-        Args:
-            img (np.ndarray): The input image array.
-            points (list): A list of four 2D points defining the crop region in the image.
+                参数:
+                    img (np.ndarray): 输入图像数组。
+                    points (list): 定义裁切区域的 4 个二维坐标点。
 
-        Returns:
-            np.ndarray: The transformed image array.
-        """
+                返回:
+                    np.ndarray: 变换后的图像数组。
+    """
         assert len(points) == 4, "shape of points must be 4*2"
         img_crop_width = int(
             max(
@@ -204,7 +205,8 @@ class CropByPolys(BaseOperator):
         )
         dst_img_height, dst_img_width = dst_img.shape[0:2]
         if dst_img_height * 1.0 / dst_img_width >= 1.5:
-            dst_img = np.rot90(dst_img)
+            # dst_img = np.rot90(dst_img)
+            pass
         return dst_img
 
     def reorder_poly_edge(

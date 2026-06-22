@@ -1,40 +1,35 @@
 Global:
   model: PP-OCRv5_server_det
-  mode: check_dataset # check_dataset/train/evaluate/predict
+  mode: export
   module: text_det
-  dataset_dir: "/paddle/dataset/paddlex/ocr_det/ocr_det_dataset_examples"
-  device: gpu:0,1,2,3
-  output: "output"
-
+  dataset_dir: D:/dl/projects/Git/PaddleX/mytools/merged_datasets/ocr_20260602_093318
+  device: gpu:0
+  output: D:\dl\projects\Git\PaddleX\mytools\exports/det/20260602/res_4
 CheckDataset:
   convert:
-    enable: False
+    enable: false
     src_dataset_type: null
   split:
-    enable: False
+    enable: false
     train_percent: null
     val_percent: null
-
 Train:
-  epochs_iters: 100
-  batch_size: 4
-  learning_rate: 0.001
-  pretrain_weight_path: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_pretrained_model/PP-OCRv5_server_det_pretrained.pdparams
+  epochs_iters: 75
+  batch_size: 2
+  learning_rate: 0.0005
+  pretrain_weight_path: D:/dl/projects/Git/PaddleX/mytools/app/pretrainedpdparams/PP-OCRv5_server_det_pretrained.pdparams
   resume_path: null
   log_interval: 10
-  eval_interval: 1
-  save_interval: 1
-
+  eval_interval: 10
+  save_interval: 10
 Evaluate:
-  weight_path: "output/best_accuracy/best_accuracy.pdparams"
+  weight_path: D:/dl/projects/Git/PaddleX/output/det/20260602/res_2/best_accuracy/best_accuracy.pdparams
   log_interval: 1
-
 Export:
-  weight_path: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_pretrained_model/PP-OCRv5_server_det_pretrained.pdparams
-
+  weight_path: D:/dl/projects/Git/PaddleX/mytools/exports/det/20260602/res_3/best_accuracy/best_accuracy.pdparams
 Predict:
   batch_size: 1
-  model_dir: "output/best_accuracy/inference"
-  input: "https://paddle-model-ecology.bj.bcebos.com/paddlex/imgs/demo_image/general_ocr_001.png"
+  model_dir: output/best_accuracy/inference
+  input: https://paddle-model-ecology.bj.bcebos.com/paddlex/imgs/demo_image/general_ocr_001.png
   kernel_option:
     run_mode: paddle

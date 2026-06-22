@@ -95,7 +95,6 @@ class _OCRPipeline(BasePipeline):
             self.textline_orientation_model = self.create_model(
                 textline_orientation_config
             )
-
         text_det_config = config.get("SubModules", {}).get(
             "TextDetection", {"model_config_error": "config error for text_det_model!"}
         )
@@ -146,13 +145,18 @@ class _OCRPipeline(BasePipeline):
         )
         self.batch_sampler = ImageBatchSampler(batch_size=config.get("batch_size", 1))
         self.img_reader = ReadImage(format="BGR")
+
+    def remap_textline_orientation_class_ids(
+        self, class_id_list: List[int]
+    ) -> List[int]:
+        """Apply business-specific class-id aliases before rotating text lines."""
+        return class_id_list
     # 添加多旋转的支持
     def rotate_image(
             self, image_array_list: List[np.ndarray], rotate_angle_list: List[int]
         ) -> List[np.ndarray]:
             """
             根据多分类模型的输出 ID，将图像旋转回水平方向。
-            
             映射关系（需与训练集 label.txt 中的定义一致）：
             0: 0°    -> 旋转 0°
             1: 45°   -> 旋转 -45° (或 315°)
@@ -161,18 +165,23 @@ class _OCRPipeline(BasePipeline):
             4: 270°  -> 旋转 -270° (或 90°)
             5: 315°  -> 旋转 -315° (或 45°)
             """
-            
             # 1. 定义 ID 到 实际旋转角度 的映射表
             # 注意：这里的角度是“纠正角度”。
             # 如果模型预测图片是 90度，我们需要旋转 -90度 把它变回 0度。
             angle_map = {
             0: 0,      # 预测 0°   -> 不旋转
             1: 315,    # 预测 45°  -> 逆时针转 315° (等同于顺时针 45°)
-            2: 270,    # 预测 90°  -> 逆时针转 270° (等同于顺时针 90°)
+            2: 270,    # 预测 90°  -> 逆时针转270° (等同于顺时针 90°)
             3: 180,    # 预测 180° -> 旋转 180°
             4: 90,     # 预测 270° -> 逆时针转 270° (等同于顺时针 90°)
             5: 45,    # 预测 315° -> 逆时针转 315° (等同于顺时针 45°)
         }
+            # 业务归一化：
+            # 180 度按 0 度处理，
+            # 90/270 这两个标签都按旋转 270 度处理。
+            # angle_map[3] = 0
+            angle_map[4] = 270
+            angle_map[3] = 0
             assert len(image_array_list) == len(
                 rotate_angle_list
             ), f"Length mismatch: {len(image_array_list)} vs {len(rotate_angle_list)}"
@@ -185,7 +194,6 @@ class _OCRPipeline(BasePipeline):
             for image_array, rotate_indicator in zip(image_array_list, rotate_angle_list):
                 # 3. 通过映射表获取真实的纠正角度
                 actual_rotate_angle = angle_map[rotate_indicator]
-                
                 # 调用底层组件执行物理旋转
                 # 底层 rotate_image 函数支持 0-360 任意角度
                 rotated_image = rotate_image(image_array, actual_rotate_angle)

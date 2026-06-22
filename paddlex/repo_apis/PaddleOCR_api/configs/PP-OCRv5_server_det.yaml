@@ -56,10 +56,10 @@ Optimizer:
 
 PostProcess:
   name: DBPostProcess
-  thresh: 0.3
-  box_thresh: 0.6
-  max_candidates: 1000
-  unclip_ratio: 1.5
+  thresh: 0.25
+  box_thresh: 0.45
+  max_candidates: 3000
+  unclip_ratio: 1.8
 
 Metric:
   name: DetMetric
@@ -85,17 +85,17 @@ Train:
         - type: Affine
           args:
             rotate:
-            - -10
-            - 10
+            - -90
+            - 90
         - type: Resize
           args:
             size:
-            - 0.5
-            - 3
+            - 1.0
+            - 2.0
     - EastRandomCropData:
         size:
-        - 640
-        - 640
+        - 1280
+        - 1280
         max_tries: 50
         keep_ratio: true
     - MakeBorderMap:
@@ -105,7 +105,7 @@ Train:
         total_epoch: *epoch_num
     - MakeShrinkMap:
         shrink_ratio: 0.4
-        min_text_size: 8
+        min_text_size: 3
         total_epoch: *epoch_num
     - NormalizeImage:
         scale: 1./255.
@@ -144,7 +144,7 @@ Eval:
         channel_first: false
     - DetLabelEncode: null
     - DetResizeForTest:
-        resize_long: 960
+        resize_long: 1280
     - NormalizeImage:
         scale: 1./255.
         mean:
