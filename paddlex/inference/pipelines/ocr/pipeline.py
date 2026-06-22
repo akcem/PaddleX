@@ -86,7 +86,6 @@ class _OCRPipeline(BasePipeline):
             self.textline_orientation_model = self.create_model(
                 textline_orientation_config
             )
-
         text_det_config = config.get("SubModules", {}).get(
             "TextDetection", {"model_config_error": "config error for text_det_model!"}
         )
@@ -137,6 +136,12 @@ class _OCRPipeline(BasePipeline):
         )
         self.batch_sampler = ImageBatchSampler(batch_size=config.get("batch_size", 1))
         self.img_reader = ReadImage(format="BGR")
+
+    def remap_textline_orientation_class_ids(
+        self, class_id_list: List[int]
+    ) -> List[int]:
+        """Apply business-specific class-id aliases before rotating text lines."""
+        return class_id_list
     # 添加多旋转的支持
     def rotate_image(
             self, image_array_list: List[np.ndarray], rotate_angle_list: List[int]
@@ -159,11 +164,17 @@ class _OCRPipeline(BasePipeline):
             angle_map = {
             0: 0,      # 预测 0°   -> 不旋转
             1: 315,    # 预测 45°  -> 逆时针转 315° (等同于顺时针 45°)
-            2: 270,    # 预测 90°  -> 逆时针转 270° (等同于顺时针 90°)
+            2: 270,    # 预测 90°  -> 逆时针转270° (等同于顺时针 90°)
             3: 180,    # 预测 180° -> 旋转 180°
             4: 90,     # 预测 270° -> 逆时针转 270° (等同于顺时针 90°)
             5: 45,    # 预测 315° -> 逆时针转 315° (等同于顺时针 45°)
         }
+            # 业务归一化：
+            # 180 度按 0 度处理，
+            # 90/270 这两个标签都按旋转 270 度处理。
+            # angle_map[3] = 0
+            angle_map[4] = 270
+            angle_map[3] = 0
             assert len(image_array_list) == len(
                 rotate_angle_list
             ), f"Length mismatch: {len(image_array_list)} vs {len(rotate_angle_list)}"

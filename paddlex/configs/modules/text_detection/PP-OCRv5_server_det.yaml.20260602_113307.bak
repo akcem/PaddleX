@@ -1,10 +1,10 @@
 Global:
   model: PP-OCRv5_server_det
-  mode: export
+  mode: train
   module: text_det
   dataset_dir: D:/dl/projects/Git/PaddleX/mytools/merged_datasets/ocr_20260602_093318
   device: gpu:0
-  output: D:\dl\projects\Git\PaddleX\mytools\exports/det/20260602/res_4
+  output: D:/dl/projects/Git/PaddleX/output/det/20260602/res_1
 CheckDataset:
   convert:
     enable: false
@@ -14,19 +14,19 @@ CheckDataset:
     train_percent: null
     val_percent: null
 Train:
-  epochs_iters: 75
+  epochs_iters: 50
   batch_size: 2
   learning_rate: 0.0005
-  pretrain_weight_path: D:/dl/projects/Git/PaddleX/mytools/app/pretrainedpdparams/PP-OCRv5_server_det_pretrained.pdparams
+  pretrain_weight_path: D:/dl/projects/Git/PaddleX/mytools/result/det_0519/best_accuracy/best_accuracy.pdparams
   resume_path: null
   log_interval: 10
-  eval_interval: 10
+  eval_interval: 1
   save_interval: 10
 Evaluate:
-  weight_path: D:/dl/projects/Git/PaddleX/output/det/20260602/res_2/best_accuracy/best_accuracy.pdparams
+  weight_path: output/best_accuracy/best_accuracy.pdparams
   log_interval: 1
 Export:
-  weight_path: D:/dl/projects/Git/PaddleX/mytools/exports/det/20260602/res_3/best_accuracy/best_accuracy.pdparams
+  weight_path: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_pretrained_model/PP-OCRv5_server_det_pretrained.pdparams
 Predict:
   batch_size: 1
   model_dir: output/best_accuracy/inference

@@ -1,10 +1,10 @@
 Global:
   model: PP-OCRv5_server_det
-  mode: export
+  mode: check_dataset
   module: text_det
   dataset_dir: D:/dl/projects/Git/PaddleX/mytools/merged_datasets/ocr_20260602_093318
   device: gpu:0
-  output: D:\dl\projects\Git\PaddleX\mytools\exports/det/20260602/res_4
+  output: D:\dl\projects\Git\PaddleX\mytools\exports/det/20260602/res_3
 CheckDataset:
   convert:
     enable: false
@@ -26,7 +26,7 @@ Evaluate:
   weight_path: D:/dl/projects/Git/PaddleX/output/det/20260602/res_2/best_accuracy/best_accuracy.pdparams
   log_interval: 1
 Export:
-  weight_path: D:/dl/projects/Git/PaddleX/mytools/exports/det/20260602/res_3/best_accuracy/best_accuracy.pdparams
+  weight_path: D:/dl/projects/Git/PaddleX/output/det/20260602/res_2/best_accuracy/best_accuracy.pdparams
 Predict:
   batch_size: 1
   model_dir: output/best_accuracy/inference
