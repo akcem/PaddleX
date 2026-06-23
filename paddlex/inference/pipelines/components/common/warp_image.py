@@ -47,5 +47,6 @@ def rotate_image(image, angle):
         mat,
         dst_size,
         flags=cv2.INTER_CUBIC,
+        borderValue=(255, 255, 255),
     )
     return rotated

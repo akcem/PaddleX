@@ -16,6 +16,8 @@ from abc import ABC, ABCMeta, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
+import numpy as np
+
 from ....utils import logging
 from ....utils.flags import (
     INFER_BENCHMARK,
@@ -116,12 +118,51 @@ class BasePredictor(ABC, metaclass=ABCMeta):
         else:
             yield from self.apply(input, **kwargs)
 
+    def _get_batch_field_size(self, value: Any) -> int:
+        """
+        【推理结果】【批次拆分】获取字段值对应的 batch 条数。
+
+        Args:
+            value: process 返回的单个字段值。
+
+        Returns:
+            int: 字段值可拆分的 batch 条数，无法拆分时返回 1。
+        """
+        if isinstance(value, list):
+            return len(value)
+        if isinstance(value, np.ndarray) and value.ndim > 0:
+            return value.shape[0]
+        return 1
+
+    def _get_single_batch_field(self, value: Any, idx: int, batch_size: int) -> Any:
+        """
+        【推理结果】【批次拆分】获取当前样本对应的单条字段值。
+
+        Args:
+            value: process 返回的单个字段值。
+            idx: 当前样本在 batch 中的序号。
+            batch_size: 当前 batch 的样本数量。
+
+        Returns:
+            Any: 如果字段是按 batch 组织的 list 或 ndarray，则返回第 idx 条，否则返回原值。
+        """
+        if isinstance(value, list) and idx < len(value):
+            return value[idx]
+        if (
+            isinstance(value, np.ndarray)
+            and value.ndim > 0
+            and value.shape[0] == batch_size
+            and idx < value.shape[0]
+        ):
+            return value[idx]
+        return value
+
     def apply(self, input: Any, **kwargs: Any) -> Iterator[Any]:
         """Default implementation: batch_sampler -> process -> wrap with result_class.
 
         Handles two process return formats:
         1. pred["result"] is a list of per-item results
-        2. pred is a dict of lists (e.g. input_path, class_ids, scores) - split by index
+        2. pred is a dict of batch fields (e.g. input_path, class_ids, scores) - split by index
         """
         if INFER_BENCHMARK:
             if not isinstance(input, list):
@@ -140,28 +181,27 @@ class BasePredictor(ABC, metaclass=ABCMeta):
             pred = self.process(batch_data, **kwargs)
             results = pred.get("result", pred)
             if isinstance(results, list):
+                n = len(results)
                 for idx, single in enumerate(results):
                     item = {"result": single}
                     for k, v in pred.items():
                         if k == "result":
                             continue
-                        if isinstance(v, list) and idx < len(v):
-                            item[k] = v[idx]
-                        else:
-                            item[k] = v
+                        item[k] = self._get_single_batch_field(v, idx, n)
                     if input_paths and idx < len(input_paths):
                         item["input_path"] = input_paths[idx]
                     yield self.result_class(item)
             else:
                 first_val = next(iter(pred.values()), None)
-                n = len(first_val) if isinstance(first_val, list) else 1
+                n = (
+                    len(input_paths)
+                    if input_paths is not None
+                    else self._get_batch_field_size(first_val)
+                )
                 for idx in range(n):
                     item = {}
                     for k, v in pred.items():
-                        if isinstance(v, list) and idx < len(v):
-                            item[k] = v[idx]
-                        else:
-                            item[k] = v
+                        item[k] = self._get_single_batch_field(v, idx, n)
                     if input_paths and idx < len(input_paths):
                         item["input_path"] = input_paths[idx]
                     yield self.result_class(item)

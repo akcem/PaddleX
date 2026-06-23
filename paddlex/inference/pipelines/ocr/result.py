@@ -136,6 +136,8 @@ class OCRResult(BaseCVResult):
             if self["text_type"] == "seal"
             else np.array(self["dt_polys"])
         )
+        if "dt_scores" in self:
+            data["dt_scores"] = np.array(self["dt_scores"])
         data["text_det_params"] = self["text_det_params"]
         data["text_type"] = self["text_type"]
         if "textline_orientation_angles" in self:
@@ -151,6 +153,8 @@ class OCRResult(BaseCVResult):
             if self["text_type"] == "seal"
             else np.array(self["rec_polys"])
         )
+        if "rec_dt_scores" in self:
+            data["rec_dt_scores"] = np.array(self["rec_dt_scores"])
         data["rec_boxes"] = np.array(self["rec_boxes"])
         if "text_word_boxes" in self:
             data["text_word_boxes"] = self["text_word_boxes"]
@@ -176,6 +180,8 @@ class OCRResult(BaseCVResult):
         if self["model_settings"]["use_doc_preprocessor"]:
             data["doc_preprocessor_res"] = self["doc_preprocessor_res"].json["res"]
         data["dt_polys"] = self["dt_polys"]
+        if "dt_scores" in self:
+            data["dt_scores"] = self["dt_scores"]
         data["text_det_params"] = self["text_det_params"]
         data["text_type"] = self["text_type"]
         if "textline_orientation_angles" in self:
@@ -185,6 +191,8 @@ class OCRResult(BaseCVResult):
         data["rec_texts"] = self["rec_texts"]
         data["rec_scores"] = self["rec_scores"]
         data["rec_polys"] = self["rec_polys"]
+        if "rec_dt_scores" in self:
+            data["rec_dt_scores"] = self["rec_dt_scores"]
         data["rec_boxes"] = self["rec_boxes"]
         if "text_word_boxes" in self:
             data["text_word_boxes"] = self["text_word_boxes"]

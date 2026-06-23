@@ -146,6 +146,58 @@ class _OCRPipeline(BasePipeline):
         self.batch_sampler = ImageBatchSampler(batch_size=config.get("batch_size", 1))
         self.img_reader = ReadImage(format="BGR")
 
+    def _sort_detection_results(self, dt_polys, dt_scores):
+        """
+        根据 OCR 检测框排序规则，同步排序检测框和检测分数。
+
+        Args:
+            dt_polys: 文本检测模型输出的检测框列表。
+            dt_scores: 与检测框一一对应的检测分数列表。
+
+        Returns:
+            tuple: 排序后的检测框列表和检测分数列表。
+        """
+        score_list = list(dt_scores) if dt_scores is not None else []
+        poly_count = len(dt_polys)
+        if len(score_list) < poly_count:
+            score_list.extend([None] * (poly_count - len(score_list)))
+        elif len(score_list) > poly_count:
+            score_list = score_list[:poly_count]
+
+        if self.text_type == "general":
+            dt_boxes = np.array(dt_polys)
+            num_boxes = dt_boxes.shape[0]
+            sorted_indices = sorted(
+                range(num_boxes),
+                key=lambda idx: (dt_boxes[idx][0][1], dt_boxes[idx][0][0]),
+            )
+
+            for i in range(num_boxes - 1):
+                for j in range(i, -1, -1):
+                    current_idx = sorted_indices[j]
+                    next_idx = sorted_indices[j + 1]
+                    if abs(dt_boxes[next_idx][0][1] - dt_boxes[current_idx][0][1]) < 10 and (
+                        dt_boxes[next_idx][0][0] < dt_boxes[current_idx][0][0]
+                    ):
+                        sorted_indices[j], sorted_indices[j + 1] = (
+                            sorted_indices[j + 1],
+                            sorted_indices[j],
+                        )
+                    else:
+                        break
+            sorted_polys = [dt_boxes[idx] for idx in sorted_indices]
+        else:
+            num_boxes = len(dt_polys)
+            if num_boxes == 0:
+                sorted_indices = []
+            else:
+                y_min_list = [min(dt_polys[bno][:, 1]) for bno in range(num_boxes)]
+                sorted_indices = list(np.argsort(np.array(y_min_list)))
+            sorted_polys = [dt_polys[idx] for idx in sorted_indices]
+
+        sorted_scores = [score_list[idx] for idx in sorted_indices]
+        return sorted_polys, sorted_scores
+
     def remap_textline_orientation_class_ids(
         self, class_id_list: List[int]
     ) -> List[int]:
@@ -179,7 +231,6 @@ class _OCRPipeline(BasePipeline):
             # 业务归一化：
             # 180 度按 0 度处理，
             # 90/270 这两个标签都按旋转 270 度处理。
-            # angle_map[3] = 0
             angle_map[4] = 270
             angle_map[3] = 0
             assert len(image_array_list) == len(
@@ -386,8 +437,14 @@ class _OCRPipeline(BasePipeline):
             )
 
             dt_polys_list = [item["dt_polys"] for item in det_results]
+            dt_scores_list = [item.get("dt_scores", []) for item in det_results]
 
-            dt_polys_list = [self._sort_boxes(item) for item in dt_polys_list]
+            sorted_det_results = [
+                self._sort_detection_results(dt_polys, dt_scores)
+                for dt_polys, dt_scores in zip(dt_polys_list, dt_scores_list)
+            ]
+            dt_polys_list = [item[0] for item in sorted_det_results]
+            dt_scores_list = [item[1] for item in sorted_det_results]
 
             results = [
                 {
@@ -395,6 +452,7 @@ class _OCRPipeline(BasePipeline):
                     "page_index": page_index,
                     "doc_preprocessor_res": doc_preprocessor_res,
                     "dt_polys": dt_polys,
+                    "dt_scores": dt_scores,
                     "model_settings": model_settings,
                     "text_det_params": text_det_params,
                     "text_type": self.text_type,
@@ -403,13 +461,15 @@ class _OCRPipeline(BasePipeline):
                     "rec_texts": [],
                     "rec_scores": [],
                     "rec_polys": [],
+                    "rec_dt_scores": [],
                     "vis_fonts": [],
                 }
-                for input_path, page_index, doc_preprocessor_res, dt_polys in zip(
+                for input_path, page_index, doc_preprocessor_res, dt_polys, dt_scores in zip(
                     batch_data.input_paths,
                     batch_data.page_indexes,
                     doc_preprocessor_results,
                     dt_polys_list,
+                    dt_scores_list,
                 )
             ]
 
@@ -432,7 +492,10 @@ class _OCRPipeline(BasePipeline):
                     )
                     filtered_subs = []
                     filtered_polys = []
-                    for sub_img, poly in zip(all_subs_of_img, dt_polys_list[idx]):
+                    filtered_scores = []
+                    for sub_img, poly, score in zip(
+                        all_subs_of_img, dt_polys_list[idx], dt_scores_list[idx]
+                    ):
                         if (
                             sub_img.size > 0
                             and sub_img.shape[0] > 0
@@ -440,8 +503,11 @@ class _OCRPipeline(BasePipeline):
                         ):
                             filtered_subs.append(sub_img)
                             filtered_polys.append(poly)
+                            filtered_scores.append(score)
                     dt_polys_list[idx] = filtered_polys
+                    dt_scores_list[idx] = filtered_scores
                     results[idx]["dt_polys"] = filtered_polys
+                    results[idx]["dt_scores"] = filtered_scores
                     all_subs_of_imgs.extend(filtered_subs)
                     chunk_indices.append(chunk_indices[-1] + len(filtered_subs))
 
@@ -473,6 +539,7 @@ class _OCRPipeline(BasePipeline):
                     ]
                     res = results[idx]
                     dt_polys = dt_polys_list[idx]
+                    dt_scores = dt_scores_list[idx]
                     sub_img_info_list = [
                         {
                             "sub_img_id": img_id,
@@ -510,6 +577,7 @@ class _OCRPipeline(BasePipeline):
                             res["rec_scores"].append(rec_res["rec_score"])
                             res["vis_fonts"].append(rec_res["vis_font"])
                             res["rec_polys"].append(dt_polys[sno])
+                            res["rec_dt_scores"].append(dt_scores[sno])
             for res in results:
                 if self.text_type == "general":
                     rec_boxes = convert_points_to_boxes(res["rec_polys"])

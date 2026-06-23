@@ -59,7 +59,7 @@ Optimizer:
   lr:
     name: Cosine
     learning_rate: 0.001 #(8*8c)
-    warmup_epoch: 2
+    warmup_epoch: 1
   regularizer:
     name: L2
     factor: 1.0e-05
@@ -67,8 +67,8 @@ Optimizer:
 PostProcess:
   name: DBPostProcess
   thresh: 0.2
-  box_thresh: 0.45
-  max_candidates: 3000
+  box_thresh: 0.4
+  max_candidates: 8000
   unclip_ratio: 1.4
 
 Metric:
@@ -100,16 +100,16 @@ Train:
             p: 0.5
         - type: Affine
           args:
-            p: 0.5
+            p: 0.3
             rotate:
-            - -45
-            - 45
+            - -90
+            - 90
             fit_output: true
         - type: Resize
           args:
             size:
-            - 0.1
-            - 2
+            - 0.5
+            - 1.5
     - RandomPerspective:
         prob: 0.3
         scale: 0.0
@@ -119,8 +119,8 @@ Train:
         fill_value: [0, 0, 0]
     - RandomCrop:
         size:
-        - 640
-        - 640
+        - 1280
+        - 1280
         max_tries: 50
         keep_ratio: true
     - MakeBorderMap:
@@ -168,7 +168,8 @@ Eval:
         img_mode: BGR
         channel_first: false
     - DetLabelEncode: null
-    - DetResizeForTest: null
+    - DetResizeForTest: 
+        resize_long: 1280
     - NormalizeImage:
         scale: 1./255.
         mean:
