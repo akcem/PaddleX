@@ -1,0 +1,5 @@
+{
+  "done_flag": false,
+  "err_type": "<class 'paddlex.utils.errors.others.UnsupportedParamError'>",
+  "err_msg": "'PP-OCRv5_server_det' is not a registered model name."
+}

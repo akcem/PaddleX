@@ -1,0 +1,1 @@
+"""PaddleX OCR desktop app."""
